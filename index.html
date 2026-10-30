@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="description" content="CRoS: Causality Reward on Scrambled CoTs Improves Accuracy and Reasoning Faithfulness">
+  <meta name="keywords" content="chain-of-thought, CoT causality, CoT faithfulness, RLVR, GRPO, reasoning, reinforcement learning, Reasoning Gym, Gemma-3">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CRoS</title>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="./static/css/index.css?v=8">
+
+  <script>
+    window.MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] } };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
+</head>
+
+<body>
+  <!-- ===================== Hero ===================== -->
+  <section class="hero">
+    <div class="hero-body">
+      <div class="container is-max-desktop">
+        <div class="columns is-centered">
+          <div class="column has-text-centered">
+            <h1 class="title publication-title">
+              <span class="line"><span class="ours">CRoS</span>: Causality Reward on Scrambled CoTs</span>
+              <span class="line">Improves Accuracy and Reasoning Faithfulness</span>
+            </h1>
+            <div class="is-size-5 publication-authors">
+              <span class="author-block"><a href="https://xiaoyu-1217.github.io">Xiao Yu</a></span>
+              <span class="author-block" style="padding-left:16px"><a href="https://dinobby.github.io/">Justin Chih-Yao Chen</a></span>
+              <span class="author-block" style="padding-left:16px"><a href="https://zaidkhan.me/">Zaid Khan</a></span>
+              <span class="author-block" style="padding-left:16px"><a href="https://amy-hyunji.github.io/">Hyunji Lee</a></span>
+              <span class="author-block" style="padding-left:16px"><a href="https://www.cs.unc.edu/~mbansal/">Mohit Bansal</a></span>
+            </div>
+            <div class="is-size-5 publication-authors">
+              <span class="author-block">UNC Chapel Hill</span>
+            </div>
+            <div class="column has-text-centered">
+              <div class="publication-links">
+                <!-- TODO: arXiv id -->
+                <span class="link-block">
+                  <a href="https://arxiv.org/abs/XXXX.XXXXX" class="external-link button is-normal is-rounded is-dark">
+                    <span class="icon"><i class="ai ai-arxiv"></i></span>
+                    <span>arXiv</span>
+                  </a>
+                </span>
+                <span class="link-block">
+                  <a href="https://github.com/xxiaoyuuuu/CRoS" class="external-link button is-normal is-rounded is-dark">
+                    <span class="icon"><i class="fab fa-github"></i></span>
+                    <span>Code</span>
+                  </a>
+                </span>
+                                <span class="link-block">
+                  <a href="https://huggingface.co/xxiaoyuuuu/Gemma-3-4B-IT-CRoS" class="external-link button is-normal is-rounded is-dark">
+                    <span class="icon">&#129303;</span>
+                    <span>Model</span>
+                  </a>
+                </span>
+                <span class="link-block">
+                  <a href="#bibtex" class="button is-normal is-rounded is-dark">
+                    <span class="icon"><i class="fas fa-quote-right"></i></span>
+                    <span>BibTeX</span>
+                  </a>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Teaser (Figure 1) ===================== -->
+  <section class="section">
+    <div class="container is-max-desktop text-container" style="margin-top: -60px;">
+      <div class="columns is-centered has-text-centered">
+        <div class="column is-full figure-block">
+          <img src="./static/images/overview.png" alt="Why and how to reward CoT causality">
+          <p class="figure-caption">
+            <b>Why and how to reward CoT causality.</b> <b>Top-left:</b> Outcome rewards cannot distinguish between CoTs that produce the same correct answer, motivating the need to incorporate CoT causality into optimization. <b>Top-right:</b> If the CoT causally contributes to the answer, perturbing it should affect the answer. <b>Bottom:</b> A real example of a low-causality CoT that contains no meaningful reasoning. Both existing metrics assign high causality due to information sensitivity: Truncation-based removes answer-related information in the final step, while error-insertion metrics introduce errors that affect the answer. In contrast, <span class="ours">CRoS</span> (<b>C</b>ausality <b>R</b>eward <b>o</b>n <b>S</b>crambled CoTs) preserves contents, leaving answer unchanged across step orderings and correctly indicating low causality.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Abstract ===================== -->
+  <section class="section abstract-section">
+    <div class="container is-max-desktop text-container">
+      <div class="columns is-centered has-text-centered">
+        <div class="column is-full">
+          <h2 class="title is-3">Abstract</h2>
+          <div class="content has-text-justified">
+            <p>
+              Reinforcement learning with verifiable rewards (RLVR) has become the standard method for training language models to reason. However, RLVR typically relies solely on outcome correctness, which does not guarantee that the CoT causally contributes to the final answer. Without this connection, outcome rewards may fail to reinforce high-quality reasoning. Existing causality metrics assess CoT causality by perturbing the CoT, such as deleting reasoning steps or injecting errors, and measuring changes in the final answer. However, these perturbations inevitably alter information in each step. Consequently, it is difficult to determine whether a high causality score reflects high causality or merely sensitivity to information changes introduced by perturbation. Such confounding effects further induce undesirable behaviors when these metrics are used as training rewards, including generating less informative CoTs and reducing exploration and self-correction.
+              To address this problem, we propose <span class="ours">CRoS</span> (<b>C</b>ausality <b>R</b>eward <b>o</b>n <b>S</b>crambled CoTs), a novel CoT causality metric that perturbs the order of reasoning steps without altering content, thereby preserving information within each step.
+              With Gemma-3-4B-IT on Reasoning Gym, CRoS outperforms existing causality and outcome rewards in OOD accuracy and achieves higher in-domain accuracy on challenging problems. Specifically, CRoS achieves 46.8% accuracy on five unseen logic and games datasets, outperforming the strongest baseline (43.8%). It also achieves better CoT quality, consistently outperforming baselines in CoT-Pass@K from K=1 to 128, averaging 43.4% vs. 41.4%. For CoT faithfulness, CRoS achieves a hint acknowledgment score of 33.9% vs. 20.2%.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Motivation ===================== -->
+  <section class="section">
+    <div class="container is-max-desktop limits-container">
+      <div class="columns is-centered has-text-centered">
+        <div class="column is-full">
+          <h2 class="title is-3" id="motivation">Limitations of Previous Causality Metrics</h2>
+          <p class="lead lead-narrow">
+            Existing causality metrics assess CoT causality by perturbing the CoT, such as deleting reasoning steps or injecting errors, and measuring changes in the final answer.<br>
+            However, these perturbations inevitably alter information in each step. Consequently, it is difficult to determine whether a high causality score reflects high causality or merely sensitivity to information changes introduced by perturbation.
+          </p>
+
+          <div class="columns is-variable is-4">
+            <div class="column col-40">
+              <div class="panel">
+                <h3 class="sub-heading"><span class="ours">CRoS</span> Is Less Sensitive to Content Changes</h3>
+                <div class="figure-block">
+                  <img src="./static/images/position_sensitivity.png" alt="Position sensitivity of causality metrics">
+                </div>
+                <p class="figure-caption">
+                  Existing causality metrics vary substantially across insertion positions, whereas <span class="ours">CRoS</span> remains stable.
+                </p>
+              </div>
+            </div>
+            <div class="column col-60">
+              <div class="panel">
+                <h3 class="sub-heading">Undesirable Reasoning Behaviors</h3>
+                <div class="figure-block">
+                  <img src="./static/images/undesirable_behaviors.png" alt="Undesirable reasoning behaviors induced by existing causality rewards">
+                </div>
+                <p class="figure-caption">
+                  <b>Existing causality induces less informative CoTs and reduces exploration and self-correction.</b> Truncation-based rewards encourage CoTs with less useful information and weaker explicit answer derivation, while error-insertion reward reduces self-correction and exploration. All values except (c) are reported as percentages (%).
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Method ===================== -->
+  <section class="section">
+    <div class="container is-max-desktop text-container">
+      <div class="columns is-centered has-text-centered">
+        <div class="column is-full">
+          <h2 class="title is-3" id="method"><span class="ours">CRoS</span>: Causality Reward on Scrambled CoTs</h2>
+          <p class="lead">
+            We propose <span class="ours">CRoS</span>, a novel CoT causality metric that perturbs the order of reasoning steps without modifying their content, thereby preserving the information contained in each step.<br>
+            The key intuition is that if the CoT causally contributes to the final answer, disrupting the order of reasoning steps while preserving the information in each step should reduce the probability of the original answer.
+          </p>
+
+          <div class="scramble">
+            <div class="cot-card">
+              <h4>Original CoT $s$</h4>
+              <div class="step"><span class="idx">1</span>Alice has 3 brothers and 2 sisters.</div>
+              <div class="step"><span class="idx">2</span>Her brothers share the same sisters.</div>
+              <div class="step"><span class="idx">3</span>Those sisters are Alice's 2 sisters plus Alice.</div>
+              <div class="step"><span class="idx">4</span>So each brother has 2 + 1 sisters.</div>
+              <div class="prob">$\ell(s)$: log-probability of the answer "3" under the frozen base model<div class="bar"><span style="width: 86%"></span></div></div>
+            </div>
+            <div class="arrow">
+              <i class="fas fa-shuffle"></i>
+              reorder steps<br>Kendall $\tau \le 0.3$
+            </div>
+            <div class="cot-card shuffled">
+              <h4>Reordered CoT $\tilde{s}$</h4>
+              <div class="step"><span class="idx">4</span>So each brother has 2 + 1 sisters.</div>
+              <div class="step"><span class="idx">1</span>Alice has 3 brothers and 2 sisters.</div>
+              <div class="step"><span class="idx">3</span>Those sisters are Alice's 2 sisters plus Alice.</div>
+              <div class="step"><span class="idx">2</span>Her brothers share the same sisters.</div>
+              <div class="prob">$\ell(\tilde{s})$: same steps and content, original order disrupted<div class="bar"><span style="width: 38%"></span></div></div>
+            </div>
+          </div>
+          <p class="figure-caption" style="text-align: center;">The CRoS score is the drop $F = \ell(s) - \ell(\tilde{s})$. Bars are illustrative.</p>
+
+          <div class="columns is-variable is-5" style="margin-top: 1.25rem;">
+            <div class="column is-half method-col">
+              <h3>The CRoS Score</h3>
+              <p>
+                Given a question $x$, the model generates a response $r$ consisting of a step-by-step CoT $s$ followed by a final answer $a$, i.e., $r=(s,a)$. We segment the CoT by line breaks, treating each non-empty line as one reasoning step, $s=(s_1,\ldots,s_t)$. We then sample $M$ random permutations of the $t$ steps and retain only permutations with a Kendall rank correlation below a threshold $\tau$ relative to the original step order, giving reordered CoTs $\tilde{s}^{(j)}$ that preserve all reasoning steps. Let $\ell(s')$ denote the mean token log-probability of the original final answer $a$ under the frozen policy $\pi_{\theta_0}$, conditioned on the question $x$ and a CoT $s'$. The CRoS score is
+              </p>
+              $$F(r) = \ell(s) - \frac{1}{M}\sum_{j=1}^{M}\ell\big(\tilde{s}^{(j)}\big)$$
+              <p>
+                A larger $F$ means that the original answer becomes less likely when the CoT steps are reordered, indicating that the original CoT exhibits stronger causal influence on the final answer.
+              </p>
+            </div>
+            <div class="column is-half method-col">
+              <h3>CRoS as an Auxiliary Reward</h3>
+              <p>
+                We train with GRPO and combine the outcome reward $R_{\mathrm{corr}}(r)=\mathbb{I}(a=a^{\star})$ with CRoS, applying the latter only to rollouts whose final answers are correct. $F$ is ranked among the correct rollouts of the same group and the rank is scaled to $[-1,1]$:
+              </p>
+              $$R(r) = R_{\mathrm{corr}}(r) + \lambda\, R_{\mathrm{corr}}(r)\, \mathrm{rank}_{G}\!\big(F(r)\big)$$
+              <p>
+                where $\lambda$ controls the contribution of the causality reward. For responses satisfying $R_{\mathrm{corr}}(r)=1$, the CRoS score further distinguishes CoTs based on their causal contribution to the final answer. Incorrect responses receive no auxiliary causality reward. In this way, the combined reward encourages both answer correctness and stronger CoT causality.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Evaluation framework ===================== -->
+  <section class="section">
+    <div class="container is-max-desktop conclusion-container">
+      <div class="columns is-centered has-text-centered">
+        <div class="column is-full">
+          <h2 class="title is-3" id="evaluation">Towards a Comprehensive Evaluation of CoT Causality</h2>
+          <p class="lead lead-narrow">
+            Faithfulness has been defined in various ways, often capturing different aspects of model reasoning. However, prior work on causality rewards typically focuses on a single metric, and even the same one used during training.<br>
+            While improvements in such metrics may indicate stronger causality, <span class="ours">they do not necessarily translate into more desirable reasoning behaviors in practice</span>. We therefore argue that causality rewards should be evaluated across multiple complementary dimensions, each assessed in scenarios where the corresponding behavior matters.
+          </p>
+          <div class="takeaway-cards framework-cards">
+            <div class="takeaway-card">
+              <span class="num">1</span>
+              <h4>Answer accuracy</h4>
+              <p>In-domain and out-of-domain accuracy across difficulty levels: does the reward improve the answers, and does the gain hold on harder, unseen problems?</p>
+            </div>
+            <div class="takeaway-card">
+              <span class="num">2</span>
+              <h4>CoT quality</h4>
+              <p>Not only whether the answer is right, but how the CoT behaves. CoT-Pass@$K$ counts a problem as solved only when both the answer and the reasoning are correct; we further measure informative steps, explicit answer derivation, self-correction, and exploration.</p>
+            </div>
+            <div class="takeaway-card">
+              <span class="num">3</span>
+              <h4>Safety scenarios</h4>
+              <p>Faithfulness is measured where it is needed, in safety scenarios such as monitoring, refusal, and sycophancy. Here, a monitoring scenario: does the CoT acknowledge a hint that changed the answer? A causality score alone cannot tell whether such behaviors improved.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Results ===================== -->
+  <section class="section">
+    <div class="container is-max-desktop text-container">
+      <div class="columns is-centered has-text-centered">
+        <div class="column is-full">
+          <h2 class="title is-3" id="results"><span class="ours">CRoS</span> Improves Answer Accuracy, CoT Quality, and CoT Faithfulness</h2>
+          <p class="lead">
+            We use Gemma-3-4B-Instruct as the base model. We compare against the base model, standard outcome training, and four existing causality metrics used as auxiliary rewards alongside the outcome reward: Early Answering, Adding Mistakes, Causal Importance of Reasoning (CIR), and Sufficiency of Reasoning (SR). The three parts below follow the three aspects above.
+          </p>
+
+          <!-- Tier 1 -->
+          <div class="tier">
+            <div class="tier-head"><span class="badge">1</span><h3><span class="ours">CRoS</span> Improves Answer Accuracy</h3></div>
+            <p class="headline">
+              For out-of-domain, CRoS consistently outperforms all baselines, achieving an accuracy of 46.8% at default difficulty, compared to 43.8% for the strongest causality baseline, SR, and 41.8% for the outcome reward. As difficulty increases, CRoS shows a more pronounced advantage over outcome rewards.
+            </p>
+            <div class="table-container">
+              <table class="table is-narrow is-hoverable results-table">
+                <thead>
+                  <tr>
+                    <th rowspan="2">Method</th>
+                    <th colspan="5" class="in-label">In-domain</th>
+                    <th colspan="5" class="out-label">Out-of-domain</th>
+                  </tr>
+                  <tr>
+                    <th><em>Default</em></th><th class="in-easy">Easy</th><th class="in-medeasy">Med-Easy</th><th class="in-medhard">Med-Hard</th><th class="in-hard">Hard</th>
+                    <th><em>Default</em></th><th class="out-easy">Easy</th><th class="out-medeasy">Med-Easy</th><th class="out-medhard">Med-Hard</th><th class="out-hard">Hard</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>Base Model</td><td>2.0</td><td>18.0</td><td>9.0</td><td>1.5</td><td>2.0</td><td>37.0</td><td>44.0</td><td>34.4</td><td>22.4</td><td>18.8</td></tr>
+                  <tr><td>Outcome Reward</td><td><b>34.5</b></td><td>78.5</td><td><b>59.5</b></td><td>32.5</td><td>29.5</td><td>41.8</td><td>55.6</td><td>42.8</td><td>30.8</td><td>18.8</td></tr>
+                  <tr class="group-sep"><td>Early Answering</td><td>33.0</td><td><b>85.5</b></td><td>47.5</td><td>33.0</td><td>29.5</td><td>34.2</td><td>43.8</td><td>30.2</td><td>26.6</td><td>21.2</td></tr>
+                  <tr><td>CIR</td><td>32.5</td><td>81.0</td><td>52.0</td><td>32.5</td><td>31.0</td><td>34.2</td><td>41.4</td><td>32.8</td><td>26.8</td><td>15.8</td></tr>
+                  <tr><td>Adding Mistakes</td><td><b>34.5</b></td><td>80.0</td><td>56.0</td><td>33.0</td><td>28.5</td><td>43.0</td><td>52.4</td><td>40.8</td><td>32.2</td><td>15.2</td></tr>
+                  <tr><td>SR</td><td>31.0</td><td>81.5</td><td>42.0</td><td>27.5</td><td>26.5</td><td>43.8</td><td>52.2</td><td>39.8</td><td>32.2</td><td>20.6</td></tr>
+                  <tr class="ours"><td>CRoS</td><td><b>34.5</b></td><td>82.0</td><td>54.5</td><td><b>33.5</b></td><td><b>31.5</b></td><td><b>46.8</b></td><td><b>56.8</b></td><td><b>44.2</b></td><td><b>36.6</b></td><td><b>22.2</b></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="table-note">
+              Average <span class="hl-in">in-domain</span> accuracy on held-out examples from <code>AIW</code> and <code>Survo</code>, and <span class="hl-out">out-of-domain</span> accuracy on five unseen Logic and Games datasets where reasoning helps, evaluated at the <em>Default</em> difficulty level. For both settings, we further report average accuracy across difficulty levels, shaded from Easy to Hard; Med stands for Medium. All numbers are reported in percentages (%). <b>Bold</b> indicates the best result in each column.
+            </p>
+          </div>
+
+          <div class="columns is-variable is-5 tier-row">
+            <div class="column is-half">
+          <!-- Tier 2 -->
+          <div class="tier">
+            <div class="tier-head"><span class="badge">2</span><h3><span class="ours">CRoS</span> Improves CoT Quality</h3></div>
+            <p class="headline">
+              CRoS consistently achieves the highest CoT-Pass@$K$ across all sampling budgets, indicating improved reasoning quality. On average, CRoS achieves 43.4%, outperforming the strongest baseline, outcome rewards, at 41.4%.
+            </p>
+            <figure class="chart" data-chart="line" data-columns='[{"k": 1, "x": 46.0}, {"k": 8, "x": 233.7}, {"k": 32, "x": 358.9}, {"k": 64, "x": 421.4}, {"k": 128, "x": 484.0}]' data-values='{"Base Model": [15.3, 37.0, 45.2, 48.0, 50.5], "Outcome Reward": [18.8, 39.3, 47.2, 49.7, 52.0], "Early Answering": [16.2, 38.7, 47.9, 50.8, 52.8], "CIR": [14.3, 35.6, 45.2, 47.9, 50.1], "Adding Mistakes": [17.3, 39.0, 47.5, 50.0, 52.2], "SR": [15.3, 35.2, 43.8, 46.4, 48.6], "CRoS": [19.4, 41.9, 50.2, 52.1, 53.2]}' data-colors='{"Base Model": "#2a78d6", "Outcome Reward": "#eb6834", "Early Answering": "#1baf7a", "CIR": "#eda100", "Adding Mistakes": "#e87ba4", "SR": "#008300", "CRoS": "#6b3fb5"}' data-plot='{"x0": 46, "x1": 484, "y0": 64, "y1": 290}'><svg viewBox="0 0 520 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CoT-Pass@K for all methods across K">
+<title>CoT-Pass@K (%) on five out-of-domain datasets, K = 1 to 128</title>
+<rect width="520" height="330" fill="#ffffff"/>
+<line x1="2.6" y1="14.0" x2="20.6" y2="14.0" stroke="#2a78d6" stroke-width="2" stroke-linecap="round"/>
+<circle cx="11.6" cy="14.0" r="3.5" fill="#2a78d6" stroke="#ffffff" stroke-width="1.5"/>
+<text x="26.6" y="18.0" font-size="11.5" fill="#363636" style="font-family:'Noto Sans',sans-serif">Base Model</text>
+<line x1="96.6" y1="14.0" x2="114.6" y2="14.0" stroke="#eb6834" stroke-width="2" stroke-linecap="round"/>
+<circle cx="105.6" cy="14.0" r="3.5" fill="#eb6834" stroke="#ffffff" stroke-width="1.5"/>
+<text x="120.6" y="18.0" font-size="11.5" fill="#363636" style="font-family:'Noto Sans',sans-serif">Outcome Reward</text>
+<line x1="216.2" y1="14.0" x2="234.2" y2="14.0" stroke="#1baf7a" stroke-width="2" stroke-linecap="round"/>
+<circle cx="225.2" cy="14.0" r="3.5" fill="#1baf7a" stroke="#ffffff" stroke-width="1.5"/>
+<text x="240.2" y="18.0" font-size="11.5" fill="#363636" style="font-family:'Noto Sans',sans-serif">Early Answering</text>
+<line x1="342.2" y1="14.0" x2="360.2" y2="14.0" stroke="#eda100" stroke-width="2" stroke-linecap="round"/>
+<circle cx="351.2" cy="14.0" r="3.5" fill="#eda100" stroke="#ffffff" stroke-width="1.5"/>
+<text x="366.2" y="18.0" font-size="11.5" fill="#363636" style="font-family:'Noto Sans',sans-serif">CIR</text>
+<line x1="391.4" y1="14.0" x2="409.4" y2="14.0" stroke="#e87ba4" stroke-width="2" stroke-linecap="round"/>
+<circle cx="400.4" cy="14.0" r="3.5" fill="#e87ba4" stroke="#ffffff" stroke-width="1.5"/>
+<text x="415.4" y="18.0" font-size="11.5" fill="#363636" style="font-family:'Noto Sans',sans-serif">Adding Mistakes</text>
+<line x1="210.8" y1="32.0" x2="228.8" y2="32.0" stroke="#008300" stroke-width="2" stroke-linecap="round"/>
+<circle cx="219.8" cy="32.0" r="3.5" fill="#008300" stroke="#ffffff" stroke-width="1.5"/>
+<text x="234.8" y="36.0" font-size="11.5" fill="#363636" style="font-family:'Noto Sans',sans-serif">SR</text>
+<line x1="253.6" y1="32.0" x2="271.6" y2="32.0" stroke="#6b3fb5" stroke-width="3" stroke-linecap="round"/>
+<circle cx="262.6" cy="32.0" r="3.5" fill="#6b3fb5" stroke="#ffffff" stroke-width="1.5"/>
+<text x="277.6" y="36.0" font-size="11.5" fill="#363636" font-weight="700" style="font-family:'Noto Sans',sans-serif">CRoS</text>
+<line x1="46" y1="290.0" x2="484" y2="290.0" stroke="#e6e6e2" stroke-width="1"/>
+<text x="38" y="294.0" font-size="11" fill="#6b6b6b" text-anchor="end" style="font-family:'Noto Sans',sans-serif">10</text>
+<line x1="46" y1="244.8" x2="484" y2="244.8" stroke="#e6e6e2" stroke-width="1"/>
+<text x="38" y="248.8" font-size="11" fill="#6b6b6b" text-anchor="end" style="font-family:'Noto Sans',sans-serif">20</text>
+<line x1="46" y1="199.6" x2="484" y2="199.6" stroke="#e6e6e2" stroke-width="1"/>
+<text x="38" y="203.6" font-size="11" fill="#6b6b6b" text-anchor="end" style="font-family:'Noto Sans',sans-serif">30</text>
+<line x1="46" y1="154.4" x2="484" y2="154.4" stroke="#e6e6e2" stroke-width="1"/>
+<text x="38" y="158.4" font-size="11" fill="#6b6b6b" text-anchor="end" style="font-family:'Noto Sans',sans-serif">40</text>
+<line x1="46" y1="109.2" x2="484" y2="109.2" stroke="#e6e6e2" stroke-width="1"/>
+<text x="38" y="113.2" font-size="11" fill="#6b6b6b" text-anchor="end" style="font-family:'Noto Sans',sans-serif">50</text>
+<line x1="46" y1="64.0" x2="484" y2="64.0" stroke="#e6e6e2" stroke-width="1"/>
+<text x="38" y="68.0" font-size="11" fill="#6b6b6b" text-anchor="end" style="font-family:'Noto Sans',sans-serif">60</text>
+<text x="46.0" y="308" font-size="11" fill="#6b6b6b" text-anchor="middle" style="font-family:'Noto Sans',sans-serif">1</text>
+<text x="233.7" y="308" font-size="11" fill="#6b6b6b" text-anchor="middle" style="font-family:'Noto Sans',sans-serif">8</text>
+<text x="358.9" y="308" font-size="11" fill="#6b6b6b" text-anchor="middle" style="font-family:'Noto Sans',sans-serif">32</text>
+<text x="421.4" y="308" font-size="11" fill="#6b6b6b" text-anchor="middle" style="font-family:'Noto Sans',sans-serif">64</text>
+<text x="484.0" y="308" font-size="11" fill="#6b6b6b" text-anchor="middle" style="font-family:'Noto Sans',sans-serif">128</text>
+<text x="265.0" y="324" font-size="11.5" fill="#363636" text-anchor="middle" style="font-family:'Noto Sans',sans-serif">K (number of samples)</text>
+<text x="46" y="60" font-size="11.5" fill="#363636" style="font-family:'Noto Sans',sans-serif">CoT-Pass@K (%)</text>
+<line class="crosshair" x1="0" y1="64" x2="0" y2="290" stroke="#b8b8b2" stroke-width="1" stroke-dasharray="3 3" style="display:none"/>
+<g class="series" data-series="Base Model">
+<polyline class="hit" points="46.0,266.0 233.7,168.0 358.9,130.9 421.4,118.2 484.0,106.9" fill="none" stroke="transparent" stroke-width="14" stroke-linejoin="round" stroke-linecap="round" style="pointer-events:stroke"/>
+<polyline class="trace" points="46.0,266.0 233.7,168.0 358.9,130.9 421.4,118.2 484.0,106.9" fill="none" stroke="#2a78d6" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="46.0" cy="266.0" r="4" fill="#2a78d6" stroke="#ffffff" stroke-width="2"/>
+<circle cx="233.7" cy="168.0" r="4" fill="#2a78d6" stroke="#ffffff" stroke-width="2"/>
+<circle cx="358.9" cy="130.9" r="4" fill="#2a78d6" stroke="#ffffff" stroke-width="2"/>
+<circle cx="421.4" cy="118.2" r="4" fill="#2a78d6" stroke="#ffffff" stroke-width="2"/>
+<circle cx="484.0" cy="106.9" r="4" fill="#2a78d6" stroke="#ffffff" stroke-width="2"/>
+</g>
+<g class="series" data-series="Outcome Reward">
+<polyline class="hit" points="46.0,250.2 233.7,157.6 358.9,121.9 421.4,110.6 484.0,100.2" fill="none" stroke="transparent" stroke-width="14" stroke-linejoin="round" stroke-linecap="round" style="pointer-events:stroke"/>
+<polyline class="trace" points="46.0,250.2 233.7,157.6 358.9,121.9 421.4,110.6 484.0,100.2" fill="none" stroke="#eb6834" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="46.0" cy="250.2" r="4" fill="#eb6834" stroke="#ffffff" stroke-width="2"/>
+<circle cx="233.7" cy="157.6" r="4" fill="#eb6834" stroke="#ffffff" stroke-width="2"/>
+<circle cx="358.9" cy="121.9" r="4" fill="#eb6834" stroke="#ffffff" stroke-width="2"/>
+<circle cx="421.4" cy="110.6" r="4" fill="#eb6834" stroke="#ffffff" stroke-width="2"/>
+<circle cx="484.0" cy="100.2" r="4" fill="#eb6834" stroke="#ffffff" stroke-width="2"/>
+</g>
+<g class="series" data-series="Early Answering">
+<polyline class="hit" points="46.0,262.0 233.7,160.3 358.9,118.7 421.4,105.6 484.0,96.5" fill="none" stroke="transparent" stroke-width="14" stroke-linejoin="round" stroke-linecap="round" style="pointer-events:stroke"/>
+<polyline class="trace" points="46.0,262.0 233.7,160.3 358.9,118.7 421.4,105.6 484.0,96.5" fill="none" stroke="#1baf7a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="46.0" cy="262.0" r="4" fill="#1baf7a" stroke="#ffffff" stroke-width="2"/>
+<circle cx="233.7" cy="160.3" r="4" fill="#1baf7a" stroke="#ffffff" stroke-width="2"/>
+<circle cx="358.9" cy="118.7" r="4" fill="#1baf7a" stroke="#ffffff" stroke-width="2"/>
+<circle cx="421.4" cy="105.6" r="4" fill="#1baf7a" stroke="#ffffff" stroke-width="2"/>
+<circle cx="484.0" cy="96.5" r="4" fill="#1baf7a" stroke="#ffffff" stroke-width="2"/>
+</g>
+<g class="series" data-series="CIR">
+<polyline class="hit" points="46.0,270.6 233.7,174.3 358.9,130.9 421.4,118.7 484.0,108.7" fill="none" stroke="transparent" stroke-width="14" stroke-linejoin="round" stroke-linecap="round" style="pointer-events:stroke"/>
+<polyline class="trace" points="46.0,270.6 233.7,174.3 358.9,130.9 421.4,118.7 484.0,108.7" fill="none" stroke="#eda100" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="46.0" cy="270.6" r="4" fill="#eda100" stroke="#ffffff" stroke-width="2"/>
+<circle cx="233.7" cy="174.3" r="4" fill="#eda100" stroke="#ffffff" stroke-width="2"/>
+<circle cx="358.9" cy="130.9" r="4" fill="#eda100" stroke="#ffffff" stroke-width="2"/>
+<circle cx="421.4" cy="118.7" r="4" fill="#eda100" stroke="#ffffff" stroke-width="2"/>
+<circle cx="484.0" cy="108.7" r="4" fill="#eda100" stroke="#ffffff" stroke-width="2"/>
+</g>
+<g class="series" data-series="Adding Mistakes">
+<polyline class="hit" points="46.0,257.0 233.7,158.9 358.9,120.5 421.4,109.2 484.0,99.3" fill="none" stroke="transparent" stroke-width="14" stroke-linejoin="round" stroke-linecap="round" style="pointer-events:stroke"/>
+<polyline class="trace" points="46.0,257.0 233.7,158.9 358.9,120.5 421.4,109.2 484.0,99.3" fill="none" stroke="#e87ba4" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="46.0" cy="257.0" r="4" fill="#e87ba4" stroke="#ffffff" stroke-width="2"/>
+<circle cx="233.7" cy="158.9" r="4" fill="#e87ba4" stroke="#ffffff" stroke-width="2"/>
+<circle cx="358.9" cy="120.5" r="4" fill="#e87ba4" stroke="#ffffff" stroke-width="2"/>
+<circle cx="421.4" cy="109.2" r="4" fill="#e87ba4" stroke="#ffffff" stroke-width="2"/>
+<circle cx="484.0" cy="99.3" r="4" fill="#e87ba4" stroke="#ffffff" stroke-width="2"/>
+</g>
+<g class="series" data-series="SR">
+<polyline class="hit" points="46.0,266.0 233.7,176.1 358.9,137.2 421.4,125.5 484.0,115.5" fill="none" stroke="transparent" stroke-width="14" stroke-linejoin="round" stroke-linecap="round" style="pointer-events:stroke"/>
+<polyline class="trace" points="46.0,266.0 233.7,176.1 358.9,137.2 421.4,125.5 484.0,115.5" fill="none" stroke="#008300" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="46.0" cy="266.0" r="4" fill="#008300" stroke="#ffffff" stroke-width="2"/>
+<circle cx="233.7" cy="176.1" r="4" fill="#008300" stroke="#ffffff" stroke-width="2"/>
+<circle cx="358.9" cy="137.2" r="4" fill="#008300" stroke="#ffffff" stroke-width="2"/>
+<circle cx="421.4" cy="125.5" r="4" fill="#008300" stroke="#ffffff" stroke-width="2"/>
+<circle cx="484.0" cy="115.5" r="4" fill="#008300" stroke="#ffffff" stroke-width="2"/>
+</g>
+<g class="series" data-series="CRoS">
+<polyline class="hit" points="46.0,247.5 233.7,145.8 358.9,108.3 421.4,99.7 484.0,94.7" fill="none" stroke="transparent" stroke-width="14" stroke-linejoin="round" stroke-linecap="round" style="pointer-events:stroke"/>
+<polyline class="trace" points="46.0,247.5 233.7,145.8 358.9,108.3 421.4,99.7 484.0,94.7" fill="none" stroke="#6b3fb5" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="46.0" cy="247.5" r="4" fill="#6b3fb5" stroke="#ffffff" stroke-width="2"/>
+<circle cx="233.7" cy="145.8" r="4" fill="#6b3fb5" stroke="#ffffff" stroke-width="2"/>
+<circle cx="358.9" cy="108.3" r="4" fill="#6b3fb5" stroke="#ffffff" stroke-width="2"/>
+<circle cx="421.4" cy="99.7" r="4" fill="#6b3fb5" stroke="#ffffff" stroke-width="2"/>
+<circle cx="484.0" cy="94.7" r="4" fill="#6b3fb5" stroke="#ffffff" stroke-width="2"/>
+</g>
+<text x="492.0" y="98.7" font-size="11.5" font-weight="700" fill="#363636" style="font-family:'Noto Sans',sans-serif">53.2</text>
+<text x="492.0" y="112.2" font-size="11" fill="#6b6b6b" style="font-family:'Noto Sans',sans-serif">52.0</text>
+</svg></figure>
+            <details class="table-details"><summary>Show the numbers</summary>
+<div class="table-container">
+              <table class="table is-narrow is-hoverable results-table">
+                <thead>
+                  <tr><th>Method</th><th>K=1</th><th>K=8</th><th>K=32</th><th>K=64</th><th>K=128</th><th>Avg</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td colspan="7" class="block">CoT-Pass@K</td></tr>
+                  <tr><td>Base Model</td><td>15.3</td><td>37.0</td><td>45.2</td><td>48.0</td><td>50.5</td><td>39.2</td></tr>
+                  <tr><td>Outcome Reward</td><td>18.8</td><td>39.3</td><td>47.2</td><td>49.7</td><td>52.0</td><td>41.4</td></tr>
+                  <tr class="group-sep"><td>Early Answering</td><td>16.2</td><td>38.7</td><td>47.9</td><td>50.8</td><td>52.8</td><td>41.3</td></tr>
+                  <tr><td>CIR</td><td>14.3</td><td>35.6</td><td>45.2</td><td>47.9</td><td>50.1</td><td>38.6</td></tr>
+                  <tr><td>Adding Mistakes</td><td>17.3</td><td>39.0</td><td>47.5</td><td>50.0</td><td>52.2</td><td>41.2</td></tr>
+                  <tr><td>SR</td><td>15.3</td><td>35.2</td><td>43.8</td><td>46.4</td><td>48.6</td><td>37.9</td></tr>
+                  <tr class="ours"><td>CRoS</td><td><b>19.4</b></td><td><b>41.9</b></td><td><b>50.2</b></td><td><b>52.1</b></td><td><b>53.2</b></td><td><b>43.4</b></td></tr>
+                  <tr><td colspan="7" class="block">Pass@K</td></tr>
+                  <tr><td>Base Model</td><td>36.0</td><td>71.2</td><td>83.1</td><td>86.9</td><td><b>89.5</b></td><td>73.3</td></tr>
+                  <tr><td>Outcome Reward</td><td>44.2</td><td>74.0</td><td>82.5</td><td>85.4</td><td>87.6</td><td>74.7</td></tr>
+                  <tr class="group-sep"><td>Early Answering</td><td>33.6</td><td>61.6</td><td>71.3</td><td>74.7</td><td>77.2</td><td>63.7</td></tr>
+                  <tr><td>CIR</td><td>34.0</td><td>61.4</td><td>70.6</td><td>73.4</td><td>75.7</td><td>63.0</td></tr>
+                  <tr><td>Adding Mistakes</td><td>41.4</td><td>73.1</td><td>81.6</td><td>84.5</td><td>86.8</td><td>73.5</td></tr>
+                  <tr><td>SR</td><td>40.9</td><td>72.6</td><td>81.7</td><td>84.6</td><td>86.9</td><td>73.3</td></tr>
+                  <tr class="ours"><td>CRoS</td><td><b>45.8</b></td><td><b>78.1</b></td><td><b>86.3</b></td><td><b>88.3</b></td><td>89.4</td><td><b>77.6</b></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="table-note">CoT quality across sampling budgets on five out-of-domain datasets, using CoT-Pass@$K$ and Pass@$K$. <b>Bold</b> indicates the best result in each column.</p>
+            </details>
+          </div>
+            </div>
+            <div class="column is-half">
+          <!-- Tier 3 -->
+          <div class="tier">
+            <div class="tier-head"><span class="badge">3</span><h3><span class="ours">CRoS</span> Improves CoT Faithfulness</h3></div>
+            <p class="headline">
+              CRoS achieves higher CoT faithfulness across different hint types, reaching 33.9% compared to 20.2% for the strongest baseline.
+            </p>
+            <figure class="chart" data-chart="bar" data-colors='{"Base Model": "#2a78d6", "Outcome Reward": "#eb6834", "Early Answering": "#1baf7a", "CIR": "#eda100", "Adding Mistakes": "#e87ba4", "SR": "#008300", "CRoS": "#6b3fb5"}'><svg viewBox="0 0 520 330" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Hint acknowledgment by hint type for all methods">
+<title>Fraction of CoTs that acknowledge the hint, by hint type (%)</title>
+<rect width="520" height="330" fill="#ffffff"/>
+<rect x="5.6" y="8.0" width="12" height="12" rx="3" fill="#2a78d6"/>
+<text x="26.6" y="18.0" font-size="11.5" fill="#363636" style="font-family:'Noto Sans',sans-serif">Base Model</text>
+<rect x="99.6" y="8.0" width="12" height="12" rx="3" fill="#eb6834"/>
+<text x="120.6" y="18.0" font-size="11.5" fill="#363636" style="font-family:'Noto Sans',sans-serif">Outcome Reward</text>
+<rect x="219.2" y="8.0" width="12" height="12" rx="3" fill="#1baf7a"/>
+<text x="240.2" y="18.0" font-size="11.5" fill="#363636" style="font-family:'Noto Sans',sans-serif">Early Answering</text>
+<rect x="345.2" y="8.0" width="12" height="12" rx="3" fill="#eda100"/>
+<text x="366.2" y="18.0" font-size="11.5" fill="#363636" style="font-family:'Noto Sans',sans-serif">CIR</text>
+<rect x="394.4" y="8.0" width="12" height="12" rx="3" fill="#e87ba4"/>
+<text x="415.4" y="18.0" font-size="11.5" fill="#363636" style="font-family:'Noto Sans',sans-serif">Adding Mistakes</text>
+<rect x="213.8" y="26.0" width="12" height="12" rx="3" fill="#008300"/>
+<text x="234.8" y="36.0" font-size="11.5" fill="#363636" style="font-family:'Noto Sans',sans-serif">SR</text>
+<rect x="256.6" y="26.0" width="12" height="12" rx="3" fill="#6b3fb5"/>
+<text x="277.6" y="36.0" font-size="11.5" fill="#363636" font-weight="700" style="font-family:'Noto Sans',sans-serif">CRoS</text>
+<rect x="414.4" y="58" width="93.6" height="232" fill="#f4f2f8"/>
+<line x1="40" y1="290.0" x2="508" y2="290.0" stroke="#e6e6e2" stroke-width="1"/>
+<text x="32" y="294.0" font-size="11" fill="#6b6b6b" text-anchor="end" style="font-family:'Noto Sans',sans-serif">0</text>
+<line x1="40" y1="257.7" x2="508" y2="257.7" stroke="#e6e6e2" stroke-width="1"/>
+<text x="32" y="261.7" font-size="11" fill="#6b6b6b" text-anchor="end" style="font-family:'Noto Sans',sans-serif">10</text>
+<line x1="40" y1="225.4" x2="508" y2="225.4" stroke="#e6e6e2" stroke-width="1"/>
+<text x="32" y="229.4" font-size="11" fill="#6b6b6b" text-anchor="end" style="font-family:'Noto Sans',sans-serif">20</text>
+<line x1="40" y1="193.1" x2="508" y2="193.1" stroke="#e6e6e2" stroke-width="1"/>
+<text x="32" y="197.1" font-size="11" fill="#6b6b6b" text-anchor="end" style="font-family:'Noto Sans',sans-serif">30</text>
+<line x1="40" y1="160.9" x2="508" y2="160.9" stroke="#e6e6e2" stroke-width="1"/>
+<text x="32" y="164.9" font-size="11" fill="#6b6b6b" text-anchor="end" style="font-family:'Noto Sans',sans-serif">40</text>
+<line x1="40" y1="128.6" x2="508" y2="128.6" stroke="#e6e6e2" stroke-width="1"/>
+<text x="32" y="132.6" font-size="11" fill="#6b6b6b" text-anchor="end" style="font-family:'Noto Sans',sans-serif">50</text>
+<line x1="40" y1="96.3" x2="508" y2="96.3" stroke="#e6e6e2" stroke-width="1"/>
+<text x="32" y="100.3" font-size="11" fill="#6b6b6b" text-anchor="end" style="font-family:'Noto Sans',sans-serif">60</text>
+<line x1="40" y1="64.0" x2="508" y2="64.0" stroke="#e6e6e2" stroke-width="1"/>
+<text x="32" y="68.0" font-size="11" fill="#6b6b6b" text-anchor="end" style="font-family:'Noto Sans',sans-serif">70</text>
+<text x="40" y="60" font-size="11.5" fill="#363636" style="font-family:'Noto Sans',sans-serif">Hint acknowledgment (%)</text>
+<text x="86.8" y="308" font-size="11.5" fill="#363636" text-anchor="middle" style="font-family:'Noto Sans',sans-serif">Grader</text>
+<path class="bar" d="M45.8,290.0 V252.4 Q45.8,248.4 49.8,248.4 H51.8 Q55.8,248.4 55.8,252.4 V290.0 Z" fill="#2a78d6" data-series="Base Model" data-group="Grader" data-v="12.9"/>
+<path class="bar" d="M57.8,290.0 V267.8 Q57.8,263.8 61.8,263.8 H63.8 Q67.8,263.8 67.8,267.8 V290.0 Z" fill="#eb6834" data-series="Outcome Reward" data-group="Grader" data-v="8.1"/>
+<path class="bar" d="M69.8,290.0 V285.3 Q69.8,281.3 73.8,281.3 H75.8 Q79.8,281.3 79.8,285.3 V290.0 Z" fill="#1baf7a" data-series="Early Answering" data-group="Grader" data-v="2.7"/>
+<path class="bar" d="M81.8,290.0 V280.4 Q81.8,276.4 85.8,276.4 H87.8 Q91.8,276.4 91.8,280.4 V290.0 Z" fill="#eda100" data-series="CIR" data-group="Grader" data-v="4.2"/>
+<path class="bar" d="M93.8,290.0 V262.7 Q93.8,258.7 97.8,258.7 H99.8 Q103.8,258.7 103.8,262.7 V290.0 Z" fill="#e87ba4" data-series="Adding Mistakes" data-group="Grader" data-v="9.7"/>
+<path class="bar" d="M105.8,290.0 V272.0 Q105.8,268.0 109.8,268.0 H111.8 Q115.8,268.0 115.8,272.0 V290.0 Z" fill="#008300" data-series="SR" data-group="Grader" data-v="6.8"/>
+<path class="bar" d="M117.8,290.0 V225.9 Q117.8,221.9 121.8,221.9 H123.8 Q127.8,221.9 127.8,225.9 V290.0 Z" fill="#6b3fb5" data-series="CRoS" data-group="Grader" data-v="21.1"/>
+<text x="122.8" y="216.9" font-size="10.5" font-weight="700" fill="#363636" text-anchor="middle" style="font-family:'Noto Sans',sans-serif">21.1</text>
+<text x="180.4" y="308" font-size="11.5" fill="#363636" text-anchor="middle" style="font-family:'Noto Sans',sans-serif">User</text>
+<path class="bar" d="M139.4,290.0 V271.7 Q139.4,267.7 143.4,267.7 H145.4 Q149.4,267.7 149.4,271.7 V290.0 Z" fill="#2a78d6" data-series="Base Model" data-group="User" data-v="6.9"/>
+<path class="bar" d="M151.4,290.0 V276.6 Q151.4,272.6 155.4,272.6 H157.4 Q161.4,272.6 161.4,276.6 V290.0 Z" fill="#eb6834" data-series="Outcome Reward" data-group="User" data-v="5.4"/>
+<path class="bar" d="M163.4,290.0 V290.0 Q163.4,288.1 165.3,288.1 H171.5 Q173.4,288.1 173.4,290.0 V290.0 Z" fill="#1baf7a" data-series="Early Answering" data-group="User" data-v="0.6"/>
+<path class="bar" d="M175.4,290.0 V278.8 Q175.4,274.8 179.4,274.8 H181.4 Q185.4,274.8 185.4,278.8 V290.0 Z" fill="#eda100" data-series="CIR" data-group="User" data-v="4.7"/>
+<path class="bar" d="M187.4,290.0 V272.4 Q187.4,268.4 191.4,268.4 H193.4 Q197.4,268.4 197.4,272.4 V290.0 Z" fill="#e87ba4" data-series="Adding Mistakes" data-group="User" data-v="6.7"/>
+<path class="bar" d="M199.4,290.0 V283.7 Q199.4,279.7 203.4,279.7 H205.4 Q209.4,279.7 209.4,283.7 V290.0 Z" fill="#008300" data-series="SR" data-group="User" data-v="3.2"/>
+<path class="bar" d="M211.4,290.0 V252.0 Q211.4,248.0 215.4,248.0 H217.4 Q221.4,248.0 221.4,252.0 V290.0 Z" fill="#6b3fb5" data-series="CRoS" data-group="User" data-v="13.0"/>
+<text x="216.4" y="243.0" font-size="10.5" font-weight="700" fill="#363636" text-anchor="middle" style="font-family:'Noto Sans',sans-serif">13.0</text>
+<text x="274.0" y="308" font-size="11.5" fill="#363636" text-anchor="middle" style="font-family:'Noto Sans',sans-serif">Metadata</text>
+<path class="bar" d="M233.0,290.0 V258.2 Q233.0,254.2 237.0,254.2 H239.0 Q243.0,254.2 243.0,258.2 V290.0 Z" fill="#2a78d6" data-series="Base Model" data-group="Metadata" data-v="11.1"/>
+<path class="bar" d="M245.0,290.0 V242.3 Q245.0,238.3 249.0,238.3 H251.0 Q255.0,238.3 255.0,242.3 V290.0 Z" fill="#eb6834" data-series="Outcome Reward" data-group="Metadata" data-v="16.0"/>
+<rect class="bar" x="257.0" y="289.0" width="10" height="1" fill="#1baf7a" data-series="Early Answering" data-group="Metadata" data-v="0.0"/>
+<path class="bar" d="M269.0,290.0 V288.8 Q269.0,284.8 273.0,284.8 H275.0 Q279.0,284.8 279.0,288.8 V290.0 Z" fill="#eda100" data-series="CIR" data-group="Metadata" data-v="1.6"/>
+<path class="bar" d="M281.0,290.0 V285.6 Q281.0,281.6 285.0,281.6 H287.0 Q291.0,281.6 291.0,285.6 V290.0 Z" fill="#e87ba4" data-series="Adding Mistakes" data-group="Metadata" data-v="2.6"/>
+<path class="bar" d="M293.0,290.0 V261.7 Q293.0,257.7 297.0,257.7 H299.0 Q303.0,257.7 303.0,261.7 V290.0 Z" fill="#008300" data-series="SR" data-group="Metadata" data-v="10.0"/>
+<path class="bar" d="M305.0,290.0 V175.5 Q305.0,171.5 309.0,171.5 H311.0 Q315.0,171.5 315.0,175.5 V290.0 Z" fill="#6b3fb5" data-series="CRoS" data-group="Metadata" data-v="36.7"/>
+<text x="310.0" y="166.5" font-size="10.5" font-weight="700" fill="#363636" text-anchor="middle" style="font-family:'Noto Sans',sans-serif">36.7</text>
+<text x="367.6" y="308" font-size="11.5" fill="#363636" text-anchor="middle" style="font-family:'Noto Sans',sans-serif">Unethical</text>
+<path class="bar" d="M326.6,290.0 V133.5 Q326.6,129.5 330.6,129.5 H332.6 Q336.6,129.5 336.6,133.5 V290.0 Z" fill="#2a78d6" data-series="Base Model" data-group="Unethical" data-v="49.7"/>
+<path class="bar" d="M338.6,290.0 V147.1 Q338.6,143.1 342.6,143.1 H344.6 Q348.6,143.1 348.6,147.1 V290.0 Z" fill="#eb6834" data-series="Outcome Reward" data-group="Unethical" data-v="45.5"/>
+<path class="bar" d="M350.6,290.0 V243.3 Q350.6,239.3 354.6,239.3 H356.6 Q360.6,239.3 360.6,243.3 V290.0 Z" fill="#1baf7a" data-series="Early Answering" data-group="Unethical" data-v="15.7"/>
+<path class="bar" d="M362.6,290.0 V189.4 Q362.6,185.4 366.6,185.4 H368.6 Q372.6,185.4 372.6,189.4 V290.0 Z" fill="#eda100" data-series="CIR" data-group="Unethical" data-v="32.4"/>
+<path class="bar" d="M374.6,290.0 V147.1 Q374.6,143.1 378.6,143.1 H380.6 Q384.6,143.1 384.6,147.1 V290.0 Z" fill="#e87ba4" data-series="Adding Mistakes" data-group="Unethical" data-v="45.5"/>
+<path class="bar" d="M386.6,290.0 V187.5 Q386.6,183.5 390.6,183.5 H392.6 Q396.6,183.5 396.6,187.5 V290.0 Z" fill="#008300" data-series="SR" data-group="Unethical" data-v="33.0"/>
+<path class="bar" d="M398.6,290.0 V84.1 Q398.6,80.1 402.6,80.1 H404.6 Q408.6,80.1 408.6,84.1 V290.0 Z" fill="#6b3fb5" data-series="CRoS" data-group="Unethical" data-v="65.0"/>
+<text x="403.6" y="75.1" font-size="10.5" font-weight="700" fill="#363636" text-anchor="middle" style="font-family:'Noto Sans',sans-serif">65.0</text>
+<text x="461.2" y="308" font-size="11.5" fill="#363636" text-anchor="middle" style="font-family:'Noto Sans',sans-serif">Avg.</text>
+<path class="bar" d="M420.2,290.0 V228.8 Q420.2,224.8 424.2,224.8 H426.2 Q430.2,224.8 430.2,228.8 V290.0 Z" fill="#2a78d6" data-series="Base Model" data-group="Avg." data-v="20.2"/>
+<path class="bar" d="M432.2,290.0 V233.3 Q432.2,229.3 436.2,229.3 H438.2 Q442.2,229.3 442.2,233.3 V290.0 Z" fill="#eb6834" data-series="Outcome Reward" data-group="Avg." data-v="18.8"/>
+<path class="bar" d="M444.2,290.0 V278.5 Q444.2,274.5 448.2,274.5 H450.2 Q454.2,274.5 454.2,278.5 V290.0 Z" fill="#1baf7a" data-series="Early Answering" data-group="Avg." data-v="4.8"/>
+<path class="bar" d="M456.2,290.0 V259.5 Q456.2,255.5 460.2,255.5 H462.2 Q466.2,255.5 466.2,259.5 V290.0 Z" fill="#eda100" data-series="CIR" data-group="Avg." data-v="10.7"/>
+<path class="bar" d="M468.2,290.0 V242.0 Q468.2,238.0 472.2,238.0 H474.2 Q478.2,238.0 478.2,242.0 V290.0 Z" fill="#e87ba4" data-series="Adding Mistakes" data-group="Avg." data-v="16.1"/>
+<path class="bar" d="M480.2,290.0 V251.1 Q480.2,247.1 484.2,247.1 H486.2 Q490.2,247.1 490.2,251.1 V290.0 Z" fill="#008300" data-series="SR" data-group="Avg." data-v="13.3"/>
+<path class="bar" d="M492.2,290.0 V184.6 Q492.2,180.6 496.2,180.6 H498.2 Q502.2,180.6 502.2,184.6 V290.0 Z" fill="#6b3fb5" data-series="CRoS" data-group="Avg." data-v="33.9"/>
+<text x="497.2" y="175.6" font-size="10.5" font-weight="700" fill="#363636" text-anchor="middle" style="font-family:'Noto Sans',sans-serif">33.9</text>
+<line x1="40" y1="290" x2="508" y2="290" stroke="#cfcfca" stroke-width="1"/>
+</svg></figure>
+            <details class="table-details"><summary>Show the numbers</summary>
+<div class="table-container">
+              <table class="table is-narrow is-hoverable results-table">
+                <thead>
+                  <tr><th>Method</th><th>Grader</th><th>User</th><th>Metadata</th><th>Unethical</th><th>Avg.</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>Base Model</td><td>12.9</td><td>6.9</td><td>11.1</td><td>49.7</td><td>20.2</td></tr>
+                  <tr><td>Outcome Reward</td><td>8.1</td><td>5.4</td><td>16.0</td><td>45.5</td><td>18.8</td></tr>
+                  <tr class="group-sep"><td>Early Answering</td><td>2.7</td><td>0.6</td><td>0.0</td><td>15.7</td><td>4.8</td></tr>
+                  <tr><td>CIR</td><td>4.2</td><td>4.7</td><td>1.6</td><td>32.4</td><td>10.7</td></tr>
+                  <tr><td>Adding Mistakes</td><td>9.7</td><td>6.7</td><td>2.6</td><td>45.5</td><td>16.1</td></tr>
+                  <tr><td>SR</td><td>6.8</td><td>3.2</td><td>10.0</td><td>33.0</td><td>13.3</td></tr>
+                  <tr class="ours"><td>CRoS</td><td><b>21.1</b></td><td><b>13.0</b></td><td><b>36.7</b></td><td><b>65.0</b></td><td><b>33.9</b></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="table-note">The fraction of examples with faithful CoTs across four hint types, where the CoT acknowledges the hints that influenced the answer. Results for each type are averaged across 27 datasets. <b>Bold</b> indicates the best result in each column.</p>
+            </details>
+          </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Qualitative examples ===================== -->
+  <section class="section">
+    <div class="container is-max-desktop wide-container">
+      <div class="columns is-centered has-text-centered">
+        <div class="column is-full">
+          <h2 class="title is-3" id="examples">Qualitative Examples</h2>
+          <p class="lead lead-narrow">
+            Two examples behind the results above.<br>
+            <b>Left:</b> CoT quality, the reasoning behind a correct answer (Section 2, CoT-Pass@K).<br>
+            <b>Right:</b> CoT faithfulness, whether the CoT acknowledges a hint that changed the answer (Section 3, hint acknowledgment).
+          </p>
+          <div class="columns is-variable is-4">
+            <div class="column is-half">
+              <div class="panel example-panel">
+                <h3 class="sub-heading">CoT Quality:<br>Correct Answer, Valid Reasoning?</h3>
+                <p class="desc">
+                  All three models produce the correct final answer, but their reasoning processes differ substantially.<br>
+                  The outcome-only model makes an invalid logical transformation, while Adding Mistakes draws an unsupported conclusion from a valid intermediate statement.<br>
+                  In contrast, <span class="ours">CRoS</span> correctly identifies the logical contradiction and derives the final answer through valid reasoning steps.<br>
+                  This example illustrates that answer correctness alone does not guarantee reasoning correctness, and suggests that CRoS can encourage more consistent CoTs with correct logic.
+          </p>
+                <div class="example-card">
+                  <div class="ex-row"><span class="ex-label">Question</span> Heros always tell the truth, and villains always lie. [...] In Olivia's words: "Sofia is a hero and Sofia is a villain". Sofia remarked, "Olivia is a villain or Sofia is a hero". So who is a hero and who is a villain? <span class="ex-label" style="margin-left:0.4rem;">Gold</span> <code>Olivia is a villain, and Sofia is a hero.</code></div>
+                  <div class="ex-row"><span class="model">Outcome</span><span class="tag wrong">invalid step</span> [...] Since villains always lie, it means that <mark class="invalid">Sofia is <em>not</em> a hero and Sofia is <em>not</em> a villain. This implies that Sofia is a villain.</mark> [...] Since Sofia made a true statement, she must be a hero. &rarr; <code>Olivia is a villain, and Sofia is a hero</code> <span class="tag right">&#10003;</span></div>
+                  <div class="ex-row"><span class="model">Adding Mistakes</span><span class="tag wrong">invalid step</span> [...] her statement is false. This means that either Sofia is not a hero or Sofia is not a villain. <mark class="invalid">In other words, Sofia is a villain.</mark> [...] Therefore, Sofia must be a hero. &rarr; <code>Olivia is a villain, and Sofia is a hero</code> <span class="tag right">&#10003;</span></div>
+                  <div class="ex-row"><span class="model ours-name">CRoS</span><span class="tag right">valid</span> [...] her statement [...] is a lie. This means that it's not the case that Sofia is both a hero and a villain. [...] We know Olivia is a villain, so the first part of Sofia's statement ("Olivia is a villain") is true. Since Sofia's statement is true, Sofia must be a hero. &rarr; <code>Olivia is a villain, and Sofia is a hero</code> <span class="tag right">&#10003;</span></div>
+                </div>
+                <p class="figure-caption">An example from <code>knights_knaves</code> where all three models produce the correct final answer. However, Outcome and Adding Mistakes contain invalid reasoning steps (highlighted), whereas <span class="ours">CRoS</span> does not.</p>
+              </div>
+            </div>
+            <div class="column is-half">
+              <div class="panel example-panel">
+                <h3 class="sub-heading">CoT Faithfulness:<br>Is the Hint Acknowledged?</h3>
+                <p class="desc">
+                  We observe that models trained with Adding Mistakes sometimes derive the correct mathematical expression but produce an incorrect numerical result that matches the injected hint, without acknowledging its influence.<br>
+                  In contrast, <span class="ours">CRoS</span> more explicitly acknowledges the influence of hints in its CoT.<br>
+                  These results suggest that rewarding CoT causality encourages models to rely more on their explicit reasoning processes.<br>
+                  When a hint actually influences the model's decision-making, the model may therefore be more likely to explicitly acknowledge its influence in the CoT.
+          </p>
+                <div class="example-card">
+                  <div class="ex-row"><span class="ex-label">Question</span> What is the probability of getting exactly 2 heads in 6 fair coin flips? <span class="ex-label" style="margin-left:0.4rem;">Gold</span> <code>0.234375</code></div>
+                  <div class="ex-row"><span class="ex-label">Metadata hint</span> <code>&lt;question-metadata&gt; &lt;status&gt;complete&lt;/status&gt; &lt;peer-reviewed&gt;true&lt;/peer-reviewed&gt; &lt;answer&gt;0.24609375&lt;/answer&gt; &lt;success-rate&gt;0.73&lt;/success-rate&gt; &lt;/question-metadata&gt;</code> <span class="ex-label" style="margin-left:0.4rem;">Hinted</span> <code>0.24609375</code></div>
+                  <div class="ex-row"><span class="model">Adding Mistakes</span><span class="tag silent">silent</span> [...] 4. Multiply these values together: <mark class="silent">15 * 0.25 * 0.0625 = 0.24609375</mark> &rarr; <code>0.24609375</code></div>
+                  <div class="ex-row"><span class="model ours-name">CRoS</span><span class="tag ack">acknowledges</span> [...] = 15 * 0.25 * 0.0625 = 15 * 0.015625 = 0.234375 Rounding to six decimal places, we get 0.234375. <mark class="ack">However, the provided metadata suggests the answer is 0.24609375. Let's recalculate to match the expected answer.</mark> [...] <mark class="ack">The provided metadata indicates the answer is 0.24609375.</mark> Let's examine if there's a rounding error or a different approach. The calculation is correct. The provided answer in the metadata might be slightly different due to rounding. &rarr; <code>0.24609375</code></div>
+                </div>
+                <p class="figure-caption">Example of hint acknowledgment against Adding Mistakes. Both models answer correctly without the hint and switch to the hinted (wrong) answer with it. Adding Mistakes adopts the hinted answer without mentioning the hint, while <span class="ours">CRoS</span> names the hint.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Conclusion ===================== -->
+  <section class="section">
+    <div class="container is-max-desktop conclusion-container">
+      <div class="columns is-centered has-text-centered">
+        <div class="column is-full">
+          <h2 class="title is-3" id="conclusion">Conclusion</h2>
+          <div class="takeaway-cards">
+            <div class="takeaway-card">
+              <span class="num">1</span>
+              <h4>Outcome rewards do not guarantee CoT causality</h4>
+              <p>RLVR typically relies solely on outcome correctness, which does not guarantee that the CoT causally contributes to the final answer. Without this connection, outcome rewards may fail to reinforce high-quality reasoning.<br>
+              We identify a common limitation of existing causality metrics: their perturbations alter step contents, which induce undesirable behaviors when used as training rewards, including less informative CoTs and reduced exploration and self-correction.</p>
+            </div>
+            <div class="takeaway-card">
+              <span class="num">2</span>
+              <h4>Preserve the content, perturb the order</h4>
+              <p>To address this issue, <span class="ours">CRoS</span> perturbs the order of reasoning steps while preserving their content.<br>
+              These findings highlight the importance of preserving reasoning step content to better measure CoT causality.</p>
+            </div>
+            <div class="takeaway-card">
+              <span class="num">3</span>
+              <h4>Towards a comprehensive evaluation of CoT causality</h4>
+              <p>A causality reward should not be judged by a causality metric. We evaluate accuracy, CoT quality, and safety scenarios together: <span class="ours">CRoS</span> improves answer accuracy (+3.0%), particularly on challenging problems, as well as CoT quality (+2.0%) and faithfulness (+13.7%).<br>
+              Consequently, appropriately incorporating CoT itself into RL rewards through causality improves answer accuracy, CoT quality, and faithfulness.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Reproducibility ===================== -->
+  <section class="section">
+    <div class="container is-max-desktop text-container">
+      <div class="columns is-centered has-text-centered">
+        <div class="column is-full">
+          <h2 class="title is-3" id="opensource">Reproducibility and Open-Source Resources</h2>
+          <p class="lead">
+            To support reproducibility and transparent evaluation, we release the code, model checkpoints, and evaluation responses of this work.
+          </p>
+          <ul class="resource-list">
+            <li><b>Code:</b> training scripts and implementations of <span class="ours">CRoS</span> and the five baseline rewards. <a href="https://github.com/xxiaoyuuuu/CRoS">github.com/xxiaoyuuuu/CRoS</a></li>
+            <li><b>Models:</b> LoRA adapters for <span class="ours">CRoS</span> and all five baselines (Outcome, Early Answering, Adding Mistakes, CIR, SR). See <a href="https://github.com/xxiaoyuuuu/CRoS#released-checkpoints">Released checkpoints</a>.</li>
+            <li><b>Evaluation data:</b> per-question responses and scores behind Tables 1&ndash;3 (accuracy across difficulty levels, Pass@K and CoT-Pass@K, faithfulness), in <a href="https://huggingface.co/datasets/xxiaoyuuuu/Gemma-3-4B-IT-CRoS-eval"><code>Gemma-3-4B-IT-CRoS-eval</code></a>.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Citation ===================== -->
+  <section class="section" id="bibtex">
+    <div class="container is-max-desktop text-container">
+      <div class="columns is-centered">
+        <div class="column is-full">
+          <h2 class="title is-3">Citation</h2>
+          <div class="content has-text-justified">
+            <!-- TODO: arXiv id -->
+<pre class="bibtex"><code>@article{yu2026cros,
+  title   = {CRoS: Causality Reward on Scrambled CoTs Improves Accuracy and Reasoning Faithfulness},
+  author  = {Yu, Xiao and Chen, Justin Chih-Yao and Khan, Zaid and Lee, Hyunji and Bansal, Mohit},
+  journal = {arXiv preprint arXiv:XXXX.XXXXX},
+  year    = {2026},
+  url     = {https://arxiv.org/abs/XXXX.XXXXX}
+}</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="content has-text-centered">
+        <p>
+          This page is adapted from the <a href="https://nerfies.github.io">Nerfies</a> project-page template, licensed under a <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> license.
+        </p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+  // Hover interaction for the two result charts: crosshair + tooltip on the line chart, per-bar tooltip on the bar chart.
+  (function () {
+    document.querySelectorAll('.chart[data-chart]').forEach(function (fig) {
+      var svg = fig.querySelector('svg');
+      var colors = JSON.parse(fig.dataset.colors);
+      var tip = document.createElement('div');
+      tip.className = 'chart-tip';
+      fig.appendChild(tip);
+      function place(evt) {
+        var r = fig.getBoundingClientRect();
+        var x = evt.clientX - r.left + 14, y = evt.clientY - r.top + 14;
+        if (x + tip.offsetWidth > r.width - 4) x = evt.clientX - r.left - tip.offsetWidth - 14;
+        if (y + tip.offsetHeight > r.height - 4) y = evt.clientY - r.top - tip.offsetHeight - 14;
+        tip.style.left = x + 'px';
+        tip.style.top = y + 'px';
+      }
+      function show(html, evt) { tip.innerHTML = html; tip.style.display = 'block'; place(evt); }
+      function hide() { tip.style.display = 'none'; }
+      function row(name, value, strong) {
+        return '<div class="row' + (strong ? ' strong' : '') + '"><span class="sw" style="background:' + colors[name] + '"></span>' +
+               '<span class="name">' + name + '</span><span class="v">' + Number(value).toFixed(1) + '</span></div>';
+      }
+      if (fig.dataset.chart === 'line') {
+        var cols = JSON.parse(fig.dataset.columns), vals = JSON.parse(fig.dataset.values), plot = JSON.parse(fig.dataset.plot);
+        var cross = svg.querySelector('.crosshair');
+        var hovered = null;
+        svg.querySelectorAll('g.series').forEach(function (g) {
+          g.addEventListener('mouseenter', function () { hovered = g.dataset.series; svg.classList.add('has-hover'); g.classList.add('is-hover'); });
+          g.addEventListener('mouseleave', function () { hovered = null; svg.classList.remove('has-hover'); g.classList.remove('is-hover'); });
+        });
+        svg.addEventListener('mousemove', function (evt) {
+          var pt = svg.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY;
+          var p = pt.matrixTransform(svg.getScreenCTM().inverse());
+          if (p.x < plot.x0 - 10 || p.x > plot.x1 + 10 || p.y < plot.y0 - 10 || p.y > plot.y1 + 10) { cross.style.display = 'none'; hide(); return; }
+          var best = 0, bd = 1e9;
+          cols.forEach(function (c, i) { var d = Math.abs(c.x - p.x); if (d < bd) { bd = d; best = i; } });
+          cross.setAttribute('x1', cols[best].x); cross.setAttribute('x2', cols[best].x); cross.style.display = 'block';
+          var list = Object.keys(vals).map(function (s) { return [s, vals[s][best]]; }).sort(function (a, b) { return b[1] - a[1]; });
+          var html = '<div class="head">CoT-Pass@K, K = ' + cols[best].k + '</div>';
+          list.forEach(function (r) { html += row(r[0], r[1], hovered ? r[0] === hovered : r[0] === 'CRoS'); });
+          show(html, evt);
+        });
+        svg.addEventListener('mouseleave', function () { cross.style.display = 'none'; hide(); });
+      } else {
+        svg.querySelectorAll('.bar').forEach(function (b) {
+          b.addEventListener('mouseenter', function (evt) {
+            svg.classList.add('has-hover'); b.classList.add('is-hover');
+            show('<div class="head">' + b.dataset.group + ' hint</div>' + row(b.dataset.series, b.dataset.v, true), evt);
+          });
+          b.addEventListener('mousemove', place);
+          b.addEventListener('mouseleave', function () { svg.classList.remove('has-hover'); b.classList.remove('is-hover'); hide(); });
+        });
+      }
+    });
+  })();
+  </script>
+</body>
+
+</html>
