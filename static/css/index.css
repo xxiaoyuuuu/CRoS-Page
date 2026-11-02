@@ -7,16 +7,21 @@
   --gold: #9a7b2f;
 }
 
+/* page-wide type size: Bulma sets 16px; everything below is in rem, so this scales the whole page */
+html {
+  font-size: 17px;
+}
+
 body {
-  font-family: 'Noto Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-  color: #363636;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  color: #000;
   background: #fff;
 }
 
 .publication-title,
 .publication-authors,
 .publication-venue {
-  font-family: 'Google Sans', 'Noto Sans', sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
 .publication-title {
@@ -61,7 +66,7 @@ body {
 .lead {
   font-size: 1rem;
   text-align: left;
-  color: #363636;
+  color: #000;
   margin: 0 auto 1.5rem;
 }
 
@@ -87,7 +92,7 @@ body {
 
 .figure-caption {
   font-size: 0.92rem;
-  color: #555;
+  color: #000;
   text-align: left;
   margin-top: 0.6rem;
 }
@@ -116,7 +121,7 @@ body {
 .panel .desc {
   font-size: 0.92rem;
   text-align: left;
-  color: #363636;
+  color: #000;
   margin-bottom: 0.75rem;
 }
 
@@ -161,7 +166,7 @@ body {
 .tier .headline {
   text-align: left;
   font-size: 1rem;
-  color: #363636;
+  color: #000;
   margin-bottom: 0.9rem;
 }
 
@@ -238,7 +243,7 @@ body {
   font-size: 0.95rem;
   font-weight: 600;
   margin-bottom: 0.5rem;
-  color: #363636;
+  color: #000;
 }
 
 .scramble .step {
@@ -247,7 +252,7 @@ body {
   gap: 0.5rem;
   font-size: 0.86rem;
   padding: 0.28rem 0;
-  color: #444;
+  color: #000;
 }
 
 .scramble .step .idx {
@@ -270,7 +275,7 @@ body {
 .scramble .prob {
   margin-top: 0.75rem;
   font-size: 0.85rem;
-  color: #555;
+  color: #000;
 }
 
 .scramble .bar {
@@ -296,7 +301,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #777;
+  color: #000;
   font-size: 0.85rem;
   text-align: center;
   min-width: 110px;
@@ -406,17 +411,21 @@ mark.invalid { background: #f7d2cd; color: inherit; padding: 0 2px; }
 
 .example-card code {
   background: #efefeb;
-  color: #363636;
+  color: #000;
   font-size: 0.85em;
 }
 
 /* takeaways */
 .takeaway-cards {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr;
+  grid-template-columns: repeat(4, 1fr);   /* Key Takeaways: four cards side by side */
   gap: 1.25rem;
   margin: 1rem auto 0;
   text-align: left;
+}
+
+@media (min-width: 769px) and (max-width: 1023px) {
+  .takeaway-cards:not(.framework-cards) { grid-template-columns: 1fr 1fr; }   /* tablets: 2 x 2 */
 }
 
 .takeaway-card {
@@ -445,16 +454,16 @@ mark.invalid { background: #f7d2cd; color: inherit; padding: 0 2px; }
   font-size: 1.05rem;
   font-weight: 700;
   margin-bottom: 0.4rem;
-  color: #363636;
+  color: #000;
 }
 
 .takeaway-card p {
   font-size: 0.92rem;
-  color: #444;
+  color: #000;
 }
 
 @media (max-width: 768px) {
-  .takeaway-cards { grid-template-columns: 1fr; }
+  .takeaway-cards, .takeaway-cards.framework-cards { grid-template-columns: 1fr; }   /* phones: one column (the .framework-cards rule below would otherwise win) */
 }
 
 /* citation */
@@ -578,8 +587,8 @@ pre.bibtex {
 
 /* section spacing: more room above each title, less below the section's content (Bulma default is 3rem / 3rem) */
 .section {
-  padding-top: 3.25rem;
-  padding-bottom: 1.75rem;
+  padding-top: 3.75rem;
+  padding-bottom: 2rem;
 }
 
 /* evaluation framework cards: three equal columns */
@@ -690,7 +699,7 @@ details.table-details .table-container {
   line-height: 1.45;
   text-align: left;
   white-space: nowrap;
-  color: #363636;
+  color: #000;
 }
 
 .chart-tip .head {
@@ -735,3 +744,141 @@ details.table-details .table-container {
 .tier-row .tier .chart {
   margin-top: auto;
 }
+
+/* ---- hero buttons: near-black like MiRL (Bulma is-dark is #363636) ---- */
+/* keep the six pills on one row after the page-wide 17px bump (0.94rem = 16px, their previous size) */
+.link-block .button {
+  font-size: 0.94rem;
+}
+.link-block a.is-dark {
+  background: #171a21;
+  color: #fff;
+}
+.link-block a.is-dark:hover {
+  background: #343a46;
+  color: #fff;
+}
+
+/* ---- hero buttons: Code in accent, BibTeX outlined ---- */
+.link-block a.is-code {
+  background: var(--accent);
+  color: #fff;
+  border-color: transparent;
+}
+.link-block a.is-code:hover {
+  background: var(--accent-dark);
+  color: #fff;
+}
+.link-block a.is-bibtex {
+  background: #fff;
+  color: #171a21;
+  border: 1px solid #d9dde5;
+}
+.link-block a.is-bibtex:hover {
+  border-color: #b5b5b5;
+  color: #000;
+}
+
+/* ---- resources card (code / models / responses) ---- */
+.resources-section { padding-top: 0; }
+.resources-card {
+  border: 1px solid var(--accent-border);
+  background: var(--accent-light);
+  border-radius: 10px;
+  padding: 1.1rem 1.4rem 0.75rem;
+}
+.resources-head {
+  text-align: left;
+  font-weight: 600;
+  color: var(--accent-dark);
+  margin-bottom: 0.9rem;
+}
+.resources-head .icon { margin-right: 0.3rem; }
+.resource-tile {
+  display: block;
+  height: 100%;
+  background: #fff;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  text-align: left;
+  color: #000;
+  transition: box-shadow .15s ease, transform .15s ease;
+}
+.resource-tile:hover {
+  color: #000;
+  box-shadow: 0 4px 14px rgba(107, 63, 181, 0.16);
+  transform: translateY(-1px);
+}
+.resource-kicker {
+  font-size: 0.78rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--accent);
+}
+.resource-title {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+  color: var(--accent-dark);
+  margin: 0.2rem 0 0.4rem;
+  word-break: break-all;
+}
+.resource-desc { font-size: 0.9rem; line-height: 1.45; }
+
+/* ---- pure black text (Bulma defaults to #363636 / #4a4a4a) ---- */
+body, .title, .subtitle, strong, b,
+.content h1, .content h2, .content h3, .content h4, .content h5, .content h6,
+.table, .table th, .table td, .results-table, .results-table th, .results-table td {
+  color: #000;
+}
+
+/* play-by-K controls under the CoT-Pass@K / Pass@K chart (same look as the Figure 1 video controls) */
+.pk-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 2px 6px 0;
+}
+.pk-btn {
+  min-width: 92px;
+  padding: 2px 10px;
+  font: inherit;
+  font-size: 0.8rem;
+  color: #333;
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  border-radius: 999px;
+  cursor: pointer;
+  line-height: 1.5;
+}
+.pk-btn:hover { border-color: var(--accent); color: var(--accent); }
+.pk-klabel { font-size: 0.8rem; color: #333; white-space: nowrap; }
+.pk-klabel b { display: inline-block; min-width: 1.9em; }
+.pk-track {
+  position: relative;
+  flex: 1;
+  height: 3px;
+  background: #e9e9e9;
+  border-radius: 2px;
+  cursor: pointer;
+  touch-action: none;
+}
+.pk-track::before { content: ""; position: absolute; left: 0; right: 0; top: -9px; bottom: -9px; }   /* easier to hit */
+.pk-fill { height: 100%; width: 0; background: var(--accent); border-radius: 2px; }
+.pk-stops { position: absolute; inset: 0; pointer-events: none; }
+.pk-stop {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #cfcfca;
+  box-sizing: border-box;
+}
+.pk-stop.on { border-color: var(--accent); background: var(--accent); }
+.chart svg .klabels text { pointer-events: none; }
+.chart-tip .head .cols { display: inline-flex; gap: 0.9rem; margin-left: 1.2rem; font-weight: 400; color: #6b6b6b; font-size: 0.78rem; }
+.chart-tip .v2 { margin-left: 0.9rem; min-width: 2.6em; text-align: right; }
